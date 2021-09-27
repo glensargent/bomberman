@@ -1,12 +1,15 @@
-use bevy::{input::keyboard, prelude::*, tasks::CountdownEvent};
+use bevy::prelude::*;
 
+const BOMB_SIZE: f32 = 25.;
+const PLAYER_SIZE: f32 = 25.;
+const EXPLOSION_LENGTH: f32 = 250.;
 struct Name(String);
 struct Ammo(i8);
 struct Health(i8);
 struct Player;
-struct Bomb {
-    timestamp: f64,
-}
+struct Bomb;
+struct Explosion;
+struct Expiry(f64);
 struct Position {
     x: f32,
     y: f32,
@@ -39,6 +42,7 @@ impl PlayerBundle {
 struct Materials {
     player_material: Handle<ColorMaterial>,
     bomb_material: Handle<ColorMaterial>,
+    explosion_material: Handle<ColorMaterial>,
 }
 
 fn main() {
@@ -50,6 +54,7 @@ fn main() {
     // regular systems run every frame
     .add_system(position.system())
     .add_system(player_controller.system())
+    .add_system(cleanup_expired.system())
     .add_system(bomb_timer.system())
     .run();
 }
@@ -59,6 +64,7 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
     commands.insert_resource(Materials{
         player_material: materials.add(Color::rgb(1., 1., 1.).into()),
         bomb_material: materials.add(Color::rgb(0., 0., 0.).into()),
+        explosion_material: materials.add(Color::rgb(1., 0.64, 0.).into()),
     });
 }
 
@@ -67,7 +73,7 @@ fn spawn_player(mut commands: Commands, materials: Res<Materials>) {
     // commands.spawn_bundle(PlayerBundle::new_player("Glen".to_string()));
     commands.spawn_bundle(SpriteBundle {
         material: materials.player_material.clone(),
-        sprite: Sprite::new(Vec2::new(10., 10.)),
+        sprite: Sprite::new(Vec2::new(PLAYER_SIZE, PLAYER_SIZE)),
         ..Default::default()
     })
     .insert_bundle(PlayerBundle::new_player("Glen".to_string()));
@@ -95,25 +101,49 @@ fn player_controller(mut commands: Commands, materials: Res<Materials>, time: Re
         if keyboard_input.just_released(KeyCode::Space) {
             commands.spawn_bundle(SpriteBundle {
                 material: materials.bomb_material.clone(),
-                sprite: Sprite::new(Vec2::new(10., 10.)),
+                sprite: Sprite::new(Vec2::new(BOMB_SIZE, BOMB_SIZE)),
                 transform: Transform::from_xyz(pos.x, pos.y, -0.1),
                 ..Default::default()
             })
-            .insert(Bomb{
-                timestamp: time.seconds_since_startup(),
-            })
+            .insert(Bomb)
+            .insert(Expiry(time.seconds_since_startup() + 5.))
             // make the bomb position the same position as the player
             .insert(Position{ x: pos.x, y: pos.y });
         }
     }
 }
 
-fn bomb_timer(mut commands: Commands, time: Res<Time>, mut query: Query<(&Bomb, Entity)>) {
+fn bomb_timer(mut commands: Commands, time: Res<Time>, materials: Res<Materials>, query: Query<(&Position, &Expiry, Entity), With<Bomb>>) {
     let current_time = time.seconds_since_startup();
-    for (bomb, entity) in query.iter() {
-        if bomb.timestamp < current_time - 5. {
-            println!("kachow");
-            commands.entity(entity).despawn();
+    for (pos, expiry, entity) in query.iter() {
+        if expiry.0 < current_time {
+            // spawn explosion Y entity
+            commands.spawn_bundle(SpriteBundle {
+                material: materials.explosion_material.clone(),
+                transform: Transform::from_xyz(pos.x, pos.y, -0.1),
+                sprite: Sprite::new(Vec2::new(BOMB_SIZE, EXPLOSION_LENGTH)),
+                ..Default::default()
+            })
+            .insert(Explosion)
+            .insert(Expiry(time.seconds_since_startup() + 2.));
+            // spawn explosion X entity
+            commands.spawn_bundle(SpriteBundle {
+                material: materials.explosion_material.clone(),
+                transform: Transform::from_xyz(pos.x, pos.y, -0.1),
+                sprite: Sprite::new(Vec2::new(EXPLOSION_LENGTH, BOMB_SIZE)),
+                ..Default::default()
+            })
+            .insert(Explosion)
+            .insert(Expiry(time.seconds_since_startup() + 2.));
+            commands.entity(entity).despawn(); // despawn the bomb, otherwise this query will keep getting hit..
+        }
+    }
+}
+
+fn cleanup_expired(mut commands: Commands, time: Res<Time>, query: Query<(&Expiry, Entity)>) {
+    for (expiry, entity) in query.iter() {
+        if expiry.0 < time.seconds_since_startup() {
+            commands.entity(entity).despawn(); // despawn the bomb, otherwise this query will keep getting hit..
         }
     }
 }
