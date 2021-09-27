@@ -108,24 +108,20 @@ fn bomb_timer(mut commands: Commands, time: Res<Time>, materials: Res<Materials>
     let current_time = time.seconds_since_startup();
     for (trans, expiry, entity) in query.iter_mut() {
         if expiry.0 < current_time {
-            // spawn explosion Y entity
-            commands.spawn_bundle(SpriteBundle {
-                material: materials.explosion_material.clone(),
-                transform: Transform::from_xyz(trans.translation.x, trans.translation.y, -0.1),
-                sprite: Sprite::new(Vec2::new(BOMB_SIZE, EXPLOSION_LENGTH)),
-                ..Default::default()
-            })
-            .insert(Explosion)
-            .insert(Expiry(time.seconds_since_startup() + 2.));
-            // spawn explosion X entity
-            commands.spawn_bundle(SpriteBundle {
-                material: materials.explosion_material.clone(),
-                transform: Transform::from_xyz(trans.translation.x, trans.translation.y, -0.1),
-                sprite: Sprite::new(Vec2::new(EXPLOSION_LENGTH, BOMB_SIZE)),
-                ..Default::default()
-            })
-            .insert(Explosion)
-            .insert(Expiry(time.seconds_since_startup() + 2.));
+            let mut spawn_explosion = |x: f32, y: f32| {
+                // spawn explosion Y entity
+                commands.spawn_bundle(SpriteBundle {
+                    material: materials.explosion_material.clone(),
+                    transform: Transform::from_xyz(trans.translation.x, trans.translation.y, -0.1),
+                    sprite: Sprite::new(Vec2::new(x, y)),
+                    ..Default::default()
+                })
+                .insert(Explosion)
+                .insert(Expiry(time.seconds_since_startup() + 2.));
+            };
+
+            spawn_explosion(BOMB_SIZE, EXPLOSION_LENGTH);
+            spawn_explosion(EXPLOSION_LENGTH, BOMB_SIZE);
             commands.entity(entity).despawn(); // despawn the bomb, otherwise this query will keep getting hit..
         }
     }
