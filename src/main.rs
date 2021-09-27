@@ -10,10 +10,6 @@ struct Player;
 struct Bomb;
 struct Explosion;
 struct Expiry(f64);
-struct Position {
-    x: f32,
-    y: f32,
-}
 // PlayerBundle is a struct that bundles together all the components
 // needed for a player entity
 #[derive(Bundle)]
@@ -21,7 +17,6 @@ struct PlayerBundle {
     name: Name,
     ammo: Ammo,
     health: Health,
-    position: Position,
     _p: Player,
     // #[bundle]
     // sprite: SpriteSheetBundle,
@@ -33,7 +28,6 @@ impl PlayerBundle {
             name: Name(name),
             ammo: Ammo(1),
             health: Health(10),
-            position: Position{x: 0., y: 0.},
             _p: Player,
         }
     }
@@ -52,7 +46,6 @@ fn main() {
     .add_startup_system(setup.system())
     .add_startup_stage("game_setup", SystemStage::single(spawn_player.system()))
     // regular systems run every frame
-    .add_system(position.system())
     .add_system(player_controller.system())
     .add_system(cleanup_expired.system())
     .add_system(bomb_timer.system())
@@ -79,22 +72,22 @@ fn spawn_player(mut commands: Commands, materials: Res<Materials>) {
     .insert_bundle(PlayerBundle::new_player("Glen".to_string()));
 }
 
-fn player_controller(mut commands: Commands, materials: Res<Materials>, time: Res<Time>, keyboard_input: Res<Input<KeyCode>>, mut query: Query<&mut Position, With<Player>>) {
-    for mut pos in query.iter_mut() {
+fn player_controller(mut commands: Commands, materials: Res<Materials>, time: Res<Time>, keyboard_input: Res<Input<KeyCode>>, mut query: Query<&mut Transform, With<Player>>) {
+    for mut transform in query.iter_mut() {
         if keyboard_input.pressed(KeyCode::Left) {
-            pos.x -= 2.;
+            transform.translation.x -= 2.;
         }
 
         if keyboard_input.pressed(KeyCode::Right) {
-            pos.x += 2.;
+            transform.translation.x += 2.;
         }
 
         if keyboard_input.pressed(KeyCode::Up) {
-            pos.y += 2.;
+            transform.translation.y += 2.;
         }
 
         if keyboard_input.pressed(KeyCode::Down) {
-            pos.y -= 2.;
+            transform.translation.y -= 2.;
         }
 
         // place a bomb
@@ -102,25 +95,23 @@ fn player_controller(mut commands: Commands, materials: Res<Materials>, time: Re
             commands.spawn_bundle(SpriteBundle {
                 material: materials.bomb_material.clone(),
                 sprite: Sprite::new(Vec2::new(BOMB_SIZE, BOMB_SIZE)),
-                transform: Transform::from_xyz(pos.x, pos.y, -0.1),
+                transform: Transform::from_xyz(transform.translation.x, transform.translation.y, -0.1),
                 ..Default::default()
             })
             .insert(Bomb)
-            .insert(Expiry(time.seconds_since_startup() + 5.))
-            // make the bomb position the same position as the player
-            .insert(Position{ x: pos.x, y: pos.y });
+            .insert(Expiry(time.seconds_since_startup() + 5.));
         }
     }
 }
 
-fn bomb_timer(mut commands: Commands, time: Res<Time>, materials: Res<Materials>, query: Query<(&Position, &Expiry, Entity), With<Bomb>>) {
+fn bomb_timer(mut commands: Commands, time: Res<Time>, materials: Res<Materials>, mut query: Query<(&mut Transform, &Expiry, Entity), With<Bomb>>) {
     let current_time = time.seconds_since_startup();
-    for (pos, expiry, entity) in query.iter() {
+    for (trans, expiry, entity) in query.iter_mut() {
         if expiry.0 < current_time {
             // spawn explosion Y entity
             commands.spawn_bundle(SpriteBundle {
                 material: materials.explosion_material.clone(),
-                transform: Transform::from_xyz(pos.x, pos.y, -0.1),
+                transform: Transform::from_xyz(trans.translation.x, trans.translation.y, -0.1),
                 sprite: Sprite::new(Vec2::new(BOMB_SIZE, EXPLOSION_LENGTH)),
                 ..Default::default()
             })
@@ -129,7 +120,7 @@ fn bomb_timer(mut commands: Commands, time: Res<Time>, materials: Res<Materials>
             // spawn explosion X entity
             commands.spawn_bundle(SpriteBundle {
                 material: materials.explosion_material.clone(),
-                transform: Transform::from_xyz(pos.x, pos.y, -0.1),
+                transform: Transform::from_xyz(trans.translation.x, trans.translation.y, -0.1),
                 sprite: Sprite::new(Vec2::new(EXPLOSION_LENGTH, BOMB_SIZE)),
                 ..Default::default()
             })
@@ -145,12 +136,5 @@ fn cleanup_expired(mut commands: Commands, time: Res<Time>, query: Query<(&Expir
         if expiry.0 < time.seconds_since_startup() {
             commands.entity(entity).despawn(); // despawn the bomb, otherwise this query will keep getting hit..
         }
-    }
-}
-
-fn position(mut query: Query<(&Position, &mut Transform)>) {
-    for (pos, mut trans) in query.iter_mut() {
-        trans.translation.x = pos.x;
-        trans.translation.y = pos.y;
     }
 }
