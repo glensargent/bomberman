@@ -44,7 +44,8 @@ fn main() {
     .add_startup_system(setup.system())
     .add_startup_stage("game_setup", SystemStage::single(spawn_player.system()))
     // regular systems run every frame
-    .add_system(greet_player.system())
+    .add_system(movement.system())
+    .add_system(player_controller.system())
     .run();
 }
 
@@ -66,8 +67,29 @@ fn spawn_player(mut commands: Commands, materials: Res<Materials>) {
     .insert_bundle(PlayerBundle::new_player("Glen".to_string()));
 }
 
-fn greet_player(query: Query<(&Name, &Position, &Health, &Ammo, &Player)>) {
-    for (name, pos, hp, ammo, controller) in query.iter() { // every entity that matches the query
-        println!("Hello, world! {}", name.0);
+fn player_controller(keyboard_input: Res<Input<KeyCode>>,mut query: Query<(&Player, &mut Position)>) {
+    for (_player, mut pos) in query.iter_mut() {
+        if keyboard_input.pressed(KeyCode::Left) {
+            pos.x -= 2.;
+        }
+
+        if keyboard_input.pressed(KeyCode::Right) {
+            pos.x += 2.;
+        }
+
+        if keyboard_input.pressed(KeyCode::Up) {
+            pos.y += 2.;
+        }
+
+        if keyboard_input.pressed(KeyCode::Down) {
+            pos.y -= 2.;
+        }
+    }
+}
+
+fn movement(mut query: Query<(&Position, &mut Transform)>) {
+    for (pos, mut trans) in query.iter_mut() {
+        trans.translation.x = pos.x;
+        trans.translation.y = pos.y;
     }
 }
