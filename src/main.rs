@@ -67,8 +67,8 @@ fn spawn_player(mut commands: Commands, materials: Res<Materials>) {
     .insert_bundle(PlayerBundle::new_player("Glen".to_string()));
 }
 
-fn player_controller(keyboard_input: Res<Input<KeyCode>>,mut query: Query<(&Player, &mut Position)>) {
-    for (_player, mut pos) in query.iter_mut() {
+fn player_controller(keyboard_input: Res<Input<KeyCode>>, mut query: Query<&mut Position, With<Player>>) {
+    for mut pos in query.iter_mut() {
         if keyboard_input.pressed(KeyCode::Left) {
             pos.x -= 2.;
         }
