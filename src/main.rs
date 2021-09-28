@@ -32,6 +32,10 @@ impl PlayerBundle {
     }
 }
 
+enum GameState {
+    InMenu,
+    InGame,
+}
 struct Materials {
     player_material: Handle<ColorMaterial>,
     bomb_material: Handle<ColorMaterial>,
@@ -137,9 +141,9 @@ fn explosion(mut commands: Commands, time: Res<Time>, mut query: Query<(&mut Tim
     }
 }
 
-fn explosion_hit(mut player_query: Query<(Entity, &Transform, &Sprite), With<Player>>, mut explosion_query: Query<(Entity, &Transform, &Sprite), With<Explosion>>) {
-    for (expl_entity, expl_tf, expl_sprite) in explosion_query.iter() {
-        for (player_entity, player_tf, player_sprite) in player_query.iter() {
+fn explosion_hit(player_query: Query<(Entity, &Transform, &Sprite), With<Player>>, explosion_query: Query<(Entity, &Transform, &Sprite), With<Explosion>>) {
+    for (_expl_entity, expl_tf, expl_sprite) in explosion_query.iter() {
+        for (_player_entity, player_tf, player_sprite) in player_query.iter() {
             // we need to get vec2 from the transform
             let player_scale = Vec2::from(player_tf.scale);
             let explosion_scale = Vec2::from(expl_tf.scale);
@@ -150,10 +154,9 @@ fn explosion_hit(mut player_query: Query<(Entity, &Transform, &Sprite), With<Pla
                 player_sprite.size * player_scale
             );
 
-            println!("{:?}", collision);
-
             if let Some(_) = collision {
                 println!("owww");
+                // player dies
             }
 
         }
