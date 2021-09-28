@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, sprite::collide_aabb::collide};
 
 const BOMB_SIZE: f32 = 25.;
 const PLAYER_SIZE: f32 = 25.;
@@ -47,6 +47,7 @@ fn main() {
     // regular systems run every frame
     .add_system(player_controller.system())
     .add_system(explosion.system())
+    .add_system(explosion_hit.system())
     .add_system(bomb_timer.system())
     .run();
 }
@@ -132,6 +133,29 @@ fn explosion(mut commands: Commands, time: Res<Time>, mut query: Query<(&mut Tim
         timer.tick(time.delta());
         if timer.finished() {
             commands.entity(entity).despawn(); // despawn the bomb, otherwise this query will keep getting hit..
+        }
+    }
+}
+
+fn explosion_hit(mut player_query: Query<(Entity, &Transform, &Sprite), With<Player>>, mut explosion_query: Query<(Entity, &Transform, &Sprite), With<Explosion>>) {
+    for (expl_entity, expl_tf, expl_sprite) in explosion_query.iter() {
+        for (player_entity, player_tf, player_sprite) in player_query.iter() {
+            // we need to get vec2 from the transform
+            let player_scale = Vec2::from(player_tf.scale);
+            let explosion_scale = Vec2::from(expl_tf.scale);
+            let collision = collide(
+                expl_tf.translation,
+                expl_sprite.size * explosion_scale,
+                player_tf.translation,
+                player_sprite.size * player_scale
+            );
+
+            println!("{:?}", collision);
+
+            if let Some(_) = collision {
+                println!("owww");
+            }
+
         }
     }
 }
