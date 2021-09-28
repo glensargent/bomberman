@@ -9,7 +9,6 @@ struct Health(i8);
 struct Player;
 struct Bomb;
 struct Explosion;
-struct Expiry(f64);
 // PlayerBundle is a struct that bundles together all the components
 // needed for a player entity
 #[derive(Bundle)]
@@ -47,7 +46,7 @@ fn main() {
     .add_startup_stage("game_setup", SystemStage::single(spawn_player.system()))
     // regular systems run every frame
     .add_system(player_controller.system())
-    .add_system(cleanup_expired.system())
+    .add_system(explosion.system())
     .add_system(bomb_timer.system())
     .run();
 }
@@ -72,7 +71,7 @@ fn spawn_player(mut commands: Commands, materials: Res<Materials>) {
     .insert_bundle(PlayerBundle::new_player("Glen".to_string()));
 }
 
-fn player_controller(mut commands: Commands, materials: Res<Materials>, time: Res<Time>, keyboard_input: Res<Input<KeyCode>>, mut query: Query<&mut Transform, With<Player>>) {
+fn player_controller(mut commands: Commands, materials: Res<Materials>, keyboard_input: Res<Input<KeyCode>>, mut query: Query<&mut Transform, With<Player>>) {
     for mut transform in query.iter_mut() {
         if keyboard_input.pressed(KeyCode::Left) {
             transform.translation.x -= 2.;
@@ -99,15 +98,15 @@ fn player_controller(mut commands: Commands, materials: Res<Materials>, time: Re
                 ..Default::default()
             })
             .insert(Bomb)
-            .insert(Expiry(time.seconds_since_startup() + 5.));
+            .insert(Timer::from_seconds(5., false));
         }
     }
 }
 
-fn bomb_timer(mut commands: Commands, time: Res<Time>, materials: Res<Materials>, mut query: Query<(&mut Transform, &Expiry, Entity), With<Bomb>>) {
-    let current_time = time.seconds_since_startup();
-    for (trans, expiry, entity) in query.iter_mut() {
-        if expiry.0 < current_time {
+fn bomb_timer(mut commands: Commands, materials: Res<Materials>, time: Res<Time>, mut query: Query<(&mut Transform, &mut Timer, Entity), With<Bomb>>) {
+    for (trans, mut timer, entity) in query.iter_mut() {
+        timer.tick(time.delta());
+        if timer.finished() {
             let mut spawn_explosion = |x: f32, y: f32| {
                 // spawn explosion Y entity
                 commands.spawn_bundle(SpriteBundle {
@@ -117,7 +116,7 @@ fn bomb_timer(mut commands: Commands, time: Res<Time>, materials: Res<Materials>
                     ..Default::default()
                 })
                 .insert(Explosion)
-                .insert(Expiry(time.seconds_since_startup() + 2.));
+                .insert(Timer::from_seconds(2., false));
             };
 
             spawn_explosion(BOMB_SIZE, EXPLOSION_LENGTH);
@@ -127,9 +126,11 @@ fn bomb_timer(mut commands: Commands, time: Res<Time>, materials: Res<Materials>
     }
 }
 
-fn cleanup_expired(mut commands: Commands, time: Res<Time>, query: Query<(&Expiry, Entity)>) {
-    for (expiry, entity) in query.iter() {
-        if expiry.0 < time.seconds_since_startup() {
+fn explosion(mut commands: Commands, time: Res<Time>, mut query: Query<(&mut Timer, Entity), With<Explosion>>) {
+    for (mut timer, entity) in query.iter_mut() {
+        // cleanup the explosion after its duration
+        timer.tick(time.delta());
+        if timer.finished() {
             commands.entity(entity).despawn(); // despawn the bomb, otherwise this query will keep getting hit..
         }
     }
